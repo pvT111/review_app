@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "1018272687581",
+    "firebase_url": "https://reviewapp-9710e-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "reviewapp-9710e",
+    "storage_bucket": "reviewapp-9710e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1018272687581:android:52b908d3284632c35e8234",
+        "android_client_info": {
+          "package_name": "com.example.review_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1018272687581-hgc1rna9hf24e26surnsthds7vdd4duv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsuv7UgQIpMTWEUVLFsGi_4ym3sYUzn1k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1018272687581-hgc1rna9hf24e26surnsthds7vdd4duv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
