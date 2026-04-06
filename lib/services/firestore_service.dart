@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../models/users.dart';
 import '../models/restaurants.dart';
+import '../models/reviews.dart';
 import '../models/claim.dart';
 
 class FirestoreService {
@@ -24,6 +25,66 @@ class FirestoreService {
 
   Future<void> saveUser(UserModel user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap(), SetOptions(merge: true));
+  }
+
+  // --- Restaurant methods ---
+
+  Future<List<RestaurantModel>> getAllRestaurants() async {
+    var snapshot = await _db.collection('restaurants').get();
+    return snapshot.docs
+        .map((doc) => RestaurantModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<List<RestaurantModel>> getFeaturedRestaurants() async {
+    var snapshot = await _db
+        .collection('restaurants')
+        .where('isFeatured', isEqualTo: true)
+        .limit(10)
+        .get();
+    return snapshot.docs
+        .map((doc) => RestaurantModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<List<RestaurantModel>> getRestaurantsByCategory(String category) async {
+    var snapshot = await _db
+        .collection('restaurants')
+        .where('categories', arrayContains: category)
+        .get();
+    return snapshot.docs
+        .map((doc) => RestaurantModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<List<RestaurantModel>> getTopRatedRestaurants({int limit = 20}) async {
+    var snapshot = await _db
+        .collection('restaurants')
+        .orderBy('averageRating', descending: true)
+        .limit(limit)
+        .get();
+    return snapshot.docs
+        .map((doc) => RestaurantModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<RestaurantModel?> getRestaurant(String id) async {
+    var doc = await _db.collection('restaurants').doc(id).get();
+    if (doc.exists) {
+      return RestaurantModel.fromMap(doc.data()!, doc.id);
+    }
+    return null;
+  }
+
+  Future<List<ReviewModel>> getRestaurantReviews(String restaurantId) async {
+    var snapshot = await _db
+        .collection('reviews')
+        .where('restaurantId', isEqualTo: restaurantId)
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snapshot.docs
+        .map((doc) => ReviewModel.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   Future<List<RestaurantModel>> searchRestaurants(String query) async {
