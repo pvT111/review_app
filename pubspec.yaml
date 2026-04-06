@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.7
+  sdk: ^3.10.4
 
 dependencies:
   flutter:
@@ -18,6 +18,12 @@ dependencies:
   firebase_storage: ^12.3.0
   google_sign_in: ^6.2.1
   image_picker: ^1.1.2
+  google_maps_flutter: ^2.9.0
+  geolocator: ^13.0.2
+  url_launcher: ^6.3.1
+  carousel_slider: ^5.0.0
+  cached_network_image: ^3.4.1
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:

@@ -5,6 +5,8 @@ import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import 'auth.dart';
 import 'claim_form.dart';
+import 'home_page.dart';
+import 'map_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,8 +21,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
 
   static const List<Widget> _pages = [
-    Center(child: Text('Home Page')),
-    Center(child: Text('Map Page')),
+    HomePage(),
+    MapPage(),
     Center(child: Text('Review Page')),
   ];
 
