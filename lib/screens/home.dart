@@ -7,6 +7,7 @@ import 'auth.dart';
 import 'claim_form.dart';
 import 'home_page.dart';
 import 'map_page.dart';
+import 'admin_dashboard.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -111,7 +112,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ListTile(
                         leading: const Icon(Icons.admin_panel_settings_outlined),
                         title: const Text('Quản trị'),
-                        onTap: () => Navigator.pop(context),
+                        onTap: () { Navigator.pop(context); Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminDashboard())
+                          );
+                        },
                       ),
                     const Divider(),
                     ListTile(
