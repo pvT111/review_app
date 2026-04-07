@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/restaurants.dart';
 import '../services/places_service.dart';
 import '../services/location_service.dart';
+import '../services/firestore_service.dart';
 import 'restaurant_detail.dart';
 
 const String _kApiKey = 'place_holder_apikey';
@@ -18,6 +19,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final PlacesService _placesService = PlacesService();
   final LocationService _locationService = LocationService();
+  final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
 
   List<RestaurantModel> _allRestaurants = [];
@@ -59,6 +61,13 @@ class _HomePageState extends State<HomePage> {
         lng: lng,
         radius: 5000,
       );
+
+      // SỬA LỖI: Await việc đẩy dữ liệu lên Firestore để đảm bảo thành công
+      // Sử dụng Future.wait để đẩy song song nhưng vẫn đợi kết quả
+      if (_allRestaurants.isNotEmpty) {
+        await Future.wait(_allRestaurants.map((r) => _firestoreService.ensureRestaurantExists(r)));
+        debugPrint('Đã đồng bộ ${_allRestaurants.length} quán lên Firestore');
+      }
 
       // Top-rated as featured
       _featuredRestaurants = List.from(_allRestaurants)

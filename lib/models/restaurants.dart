@@ -52,9 +52,9 @@ class RestaurantModel {
     final tags = json['tags'] as Map<String, dynamic>? ?? {};
     final osmType = json['type'] as String? ?? 'node';
     final osmId = json['id']?.toString() ?? '';
-    final id = '$osmType/$osmId';
+    // Sửa ID từ 'node/123' thành 'node_123' để tránh lỗi path trong Firestore
+    final id = '${osmType}_$osmId';
 
-    // Coordinates: nodes have lat/lon directly, ways have center
     double? lat, lng;
     if (json['lat'] != null) {
       lat = (json['lat'] as num).toDouble();
@@ -64,7 +64,6 @@ class RestaurantModel {
       lng = (json['center']['lon'] as num).toDouble();
     }
 
-    // Build address from OSM addr tags
     final parts = <String>[
       if ((tags['addr:housenumber'] ?? '').isNotEmpty)
         tags['addr:housenumber']!,
@@ -75,7 +74,6 @@ class RestaurantModel {
         ? parts.join(', ')
         : tags['addr:full'] ?? '';
 
-    // Cuisine as categories
     final cuisine = tags['cuisine'] as String? ?? '';
     final categories = cuisine.isNotEmpty
         ? cuisine.split(';').map((c) => c.trim()).toList()
@@ -90,7 +88,7 @@ class RestaurantModel {
       googlePlaceId: id,
       lat: lat,
       lng: lng,
-      averageRating: 0.0, // ratings come from Firestore reviews
+      averageRating: 0.0,
       totalReviews: 0,
       phone: tags['phone'] ?? tags['contact:phone'] ?? '',
       openingHours: tags['opening_hours'] ?? '',
@@ -102,26 +100,21 @@ class RestaurantModel {
     );
   }
 
-  /// Create from Google Places Nearby Search API response
-  factory RestaurantModel.fromPlacesJson(
-      Map<String, dynamic> json, String apiKey) {
+  // Giữ nguyên các factory methods khác...
+  factory RestaurantModel.fromPlacesJson(Map<String, dynamic> json, String apiKey) {
     final geometry = json['geometry']?['location'] ?? {};
     final photos = json['photos'] as List<dynamic>? ?? [];
-
     String photoUrl = '';
     List<String> photoUrls = [];
     for (var photo in photos) {
       final ref = photo['photo_reference'];
       if (ref != null) {
-        final url =
-            'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$ref&key=$apiKey';
+        final url = 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$ref&key=$apiKey';
         photoUrls.add(url);
         if (photoUrl.isEmpty) photoUrl = url;
       }
     }
-
     final types = List<String>.from(json['types'] ?? []);
-
     return RestaurantModel(
       id: json['place_id'] ?? '',
       name: json['name'] ?? '',
@@ -140,50 +133,33 @@ class RestaurantModel {
     );
   }
 
-  /// Create from Google Places API (New) v1 response
-  factory RestaurantModel.fromPlacesV1Json(
-      Map<String, dynamic> json, String apiKey) {
+  factory RestaurantModel.fromPlacesV1Json(Map<String, dynamic> json, String apiKey) {
     final location = json['location'] as Map<String, dynamic>? ?? {};
     final photos = json['photos'] as List<dynamic>? ?? [];
     final displayName = json['displayName'] as Map<String, dynamic>?;
-
     String photoUrl = '';
     List<String> photoUrls = [];
     for (var photo in photos) {
       final photoName = photo['name'];
       if (photoName != null) {
-        final url =
-            'https://places.googleapis.com/v1/$photoName/media?maxWidthPx=400&key=$apiKey';
+        final url = 'https://places.googleapis.com/v1/$photoName/media?maxWidthPx=400&key=$apiKey';
         photoUrls.add(url);
         if (photoUrl.isEmpty) photoUrl = url;
       }
     }
-
     final types = List<String>.from(json['types'] ?? []);
-
-    // Convert price level string to int
     final priceLevelStr = json['priceLevel'] as String? ?? '';
     int priceRange = 1;
-    if (priceLevelStr.contains('MODERATE')) {
-      priceRange = 2;
-    } else if (priceLevelStr.contains('EXPENSIVE') ||
-        priceLevelStr.contains('VERY_EXPENSIVE')) {
-      priceRange = 3;
-    }
+    if (priceLevelStr.contains('MODERATE')) priceRange = 2;
+    else if (priceLevelStr.contains('EXPENSIVE') || priceLevelStr.contains('VERY_EXPENSIVE')) priceRange = 3;
 
-    // Opening hours weekday text
-    final openingHours = json['regularOpeningHours'] ??
-        json['currentOpeningHours'] as Map<String, dynamic>?;
+    final openingHours = json['regularOpeningHours'] ?? json['currentOpeningHours'] as Map<String, dynamic>?;
     String hoursText = '';
     if (openingHours != null) {
-      final weekday =
-          openingHours['weekdayDescriptions'] as List<dynamic>? ?? [];
+      final weekday = openingHours['weekdayDescriptions'] as List<dynamic>? ?? [];
       hoursText = weekday.join('\n');
     }
-
-    // Resolve place id: v1 detail returns 'id', search returns 'id' inside 'places'
     final placeId = json['id'] as String? ?? '';
-
     return RestaurantModel(
       id: placeId,
       name: displayName?['text'] as String? ?? json['name'] as String? ?? '',
@@ -204,16 +180,14 @@ class RestaurantModel {
     );
   }
 
-  /// Create from Firestore document
   factory RestaurantModel.fromMap(Map<String, dynamic> data, String id) {
-    final GeoPoint? geoPoint = data['location'];
     return RestaurantModel(
       id: id,
       name: data['name'] ?? '',
       address: data['address'] ?? '',
       googlePlaceId: data['googlePlaceId'] ?? '',
-      lat: geoPoint?.latitude ?? data['lat']?.toDouble(),
-      lng: geoPoint?.longitude ?? data['lng']?.toDouble(),
+      lat: data['lat']?.toDouble(),
+      lng: data['lng']?.toDouble(),
       averageRating: (data['averageRating'] ?? 0.0).toDouble(),
       totalReviews: data['totalReviews'] ?? 0,
       ownerUid: data['ownerUid'],
