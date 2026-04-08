@@ -50,7 +50,9 @@ class LocationService {
   double? getDistanceToRestaurant(RestaurantModel restaurant) {
     if (_currentPosition == null ||
         restaurant.lat == null ||
-        restaurant.lng == null) return null;
+        restaurant.lng == null) {
+      return null;
+    }
     return calculateDistance(
       _currentPosition!.latitude,
       _currentPosition!.longitude,
@@ -97,7 +99,9 @@ class LocationService {
       if (category != null && !r.categories.contains(category)) return false;
       if (restaurantType != null &&
           restaurantType.isNotEmpty &&
-          r.restaurantType != restaurantType) return false;
+          r.restaurantType != restaurantType) {
+        return false;
+      }
       return true;
     }).toList();
   }

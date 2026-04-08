@@ -7,6 +7,7 @@ import 'auth.dart';
 import 'claim_form.dart';
 import 'home_page.dart';
 import 'map_page.dart';
+import 'restaurant_list_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,9 +22,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
 
   static const List<Widget> _pages = [
-    HomePage(),
-    MapPage(),
-    Center(child: Text('Review Page')),
+    HomePage(), 
+    MapPage(),  
+    RestaurantListPage(), 
+    Center(child: Text('Account Page')), 
   ];
 
   void _onItemTapped(int index) {
@@ -85,12 +87,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     ListTile(
                       leading: const Icon(Icons.rate_review_outlined),
-                      title: const Text('List review'),
+                      title: const Text('Lịch sử đánh giá'),
                       onTap: () => Navigator.pop(context),
                     ),
                     ListTile(
                       leading: const Icon(Icons.add_business_outlined),
-                      title: const Text('Nhận quán'),
+                      title: const Text('Đăng ký chủ quán'),
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.of(context).push(
@@ -101,16 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (isOwner)
                       ListTile(
                         leading: const Icon(Icons.store_outlined),
-                        title: const Text('Quán của tôi'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          // Điều hướng tới màn hình quản lý quán của chủ
-                        },
-                      ),
-                    if (userData?.role == 'admin')
-                      ListTile(
-                        leading: const Icon(Icons.admin_panel_settings_outlined),
-                        title: const Text('Quản trị'),
+                        title: const Text('Quản lý quán của tôi'),
                         onTap: () => Navigator.pop(context),
                       ),
                     const Divider(),
@@ -121,9 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pop(context);
                         await _authService.signOut();
                         if (mounted) {
-                          setState(() {
-                            _selectedIndex = 0;
-                          });
+                          setState(() => _selectedIndex = 0);
                         }
                       },
                     ),
@@ -140,25 +131,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Review App'),
-
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
       ),
-      body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.rate_review), label: 'Review'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Account'),
-        ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
+        selectedItemColor: Colors.orange.shade800,
+        unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Trang chủ'),
+          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Bản đồ'),
+          BottomNavigationBarItem(icon: Icon(Icons.rate_review_outlined), activeIcon: Icon(Icons.rate_review), label: 'Đánh giá'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Tài khoản'),
+        ],
       ),
     );
   }
