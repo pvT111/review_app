@@ -45,8 +45,9 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } on FirebaseAuthException catch (e) {
       String message = 'Đã xảy ra lỗi!';
-      if (e.code == 'user-not-found') message = 'Không tìm thấy người dùng.';
-      else if (e.code == 'wrong-password') message = 'Mật khẩu không đúng.';
+      if (e.code == 'user-not-found') {
+        message = 'Không tìm thấy người dùng.';
+      } else if (e.code == 'wrong-password') message = 'Mật khẩu không đúng.';
       else if (e.code == 'email-already-in-use') message = 'Email đã được sử dụng.';
       
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
