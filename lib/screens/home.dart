@@ -9,6 +9,8 @@ import 'home_page.dart';
 import 'map_page.dart';
 import 'restaurant_list_page.dart';
 import 'admin_dashboard.dart';
+import 'review_history_screen.dart';
+import 'my_restaurant_management_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -62,7 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
               return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
             }
             final userData = snapshot.data;
-            final isOwner = userData?.role == 'owner';
+            final isOwner = (userData?.role.trim().toLowerCase() ?? '') == 'owner';
+
 
             return SafeArea(
               child: SingleChildScrollView(
@@ -82,14 +85,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const Divider(),
                     ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: const Text('Thông tin cá nhân'),
-                      onTap: () => Navigator.pop(context),
-                    ),
-                    ListTile(
                       leading: const Icon(Icons.rate_review_outlined),
                       title: const Text('Lịch sử đánh giá'),
-                      onTap: () => Navigator.pop(context),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ReviewHistoryScreen()),
+                        );
+                      },
                     ),
                     ListTile(
                       leading: const Icon(Icons.add_business_outlined),
@@ -105,11 +108,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ListTile(
                         leading: const Icon(Icons.store_outlined),
                         title: const Text('Quản lý quán của tôi'),
-                        onTap: () => Navigator.pop(context),
-                        title: const Text('Quán của tôi'),
                         onTap: () {
                           Navigator.pop(context);
-                          // Điều hướng tới màn hình quản lý quán của chủ
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const MyRestaurantManagementScreen()),
+                          );
                         },
                       ),
                     if (userData?.role == 'admin')

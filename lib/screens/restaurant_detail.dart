@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +8,7 @@ import '../services/location_service.dart';
 import '../services/places_service.dart';
 import 'package:review_app/widget/review_list_widget.dart';
 import 'package:review_app/screens/add_review_screen.dart';
+import 'package:review_app/screens/my_restaurant_management_screen.dart';
 
 class RestaurantDetailScreen extends StatefulWidget {
   final RestaurantModel restaurant;
@@ -51,12 +53,36 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
           // Lấy dữ liệu Realtime từ Firestore nếu có, nếu không thì dùng dữ liệu truyền vào ban đầu
           double currentRating = r.averageRating;
           int currentTotalReviews = r.totalReviews;
+          String currentImageUrl = r.imageUrl;
+          String currentOwnerUid = r.ownerUid ?? '';
+          final currentImages = <String>[...r.images];
+          final currentMenu = <Map<String, dynamic>>[...r.menu];
+          final currentDescription = r.description;
+          final currentPhone = r.phone;
+          final currentOpeningHours = r.openingHours;
+          final currentType = r.restaurantType;
 
           if (snapshot.hasData && snapshot.data!.exists) {
             final data = snapshot.data!.data() as Map<String, dynamic>;
             currentRating = (data['averageRating'] as num? ?? 0.0).toDouble();
             currentTotalReviews = data['totalReviews'] as int? ?? 0;
+            currentImageUrl = (data['imageUrl'] as String?)?.trim().isNotEmpty == true
+                ? data['imageUrl'] as String
+                : currentImageUrl;
+            currentOwnerUid = (data['ownerUid'] as String?) ?? currentOwnerUid;
+            currentImages
+              ..clear()
+              ..addAll(List<String>.from(data['images'] ?? currentImages));
+            currentMenu
+              ..clear()
+              ..addAll(List<Map<String, dynamic>>.from(
+                (data['menu'] as List<dynamic>? ?? currentMenu)
+                    .map((item) => Map<String, dynamic>.from(item as Map)),
+              ));
           }
+
+          final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
+          final isOwner = currentUserUid != null && currentUserUid == currentOwnerUid;
 
           return CustomScrollView(
             slivers: [
@@ -66,9 +92,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 flexibleSpace: FlexibleSpaceBar(
                   title: Text(r.name,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                  background: r.imageUrl.isNotEmpty
+                  background: currentImageUrl.isNotEmpty
                       ? CachedNetworkImage(
-                          imageUrl: r.imageUrl,
+                          imageUrl: currentImageUrl,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Container(
                             color: Colors.orange.shade100,
@@ -156,12 +182,29 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                         const SizedBox(height: 16),
                       ],
                       _infoRow(Icons.location_on, r.address),
-                      if (r.phone.isNotEmpty) _infoRow(Icons.phone, r.phone),
-                      if (r.openingHours.isNotEmpty) _infoRow(Icons.access_time, r.openingHours),
-                      if (r.restaurantType.isNotEmpty) _infoRow(Icons.restaurant_menu, r.restaurantType),
-                      if (r.description.isNotEmpty) ...[
+                      if (currentPhone.isNotEmpty) _infoRow(Icons.phone, currentPhone),
+                      if (currentOpeningHours.isNotEmpty) _infoRow(Icons.access_time, currentOpeningHours),
+                      if (currentType.isNotEmpty) _infoRow(Icons.restaurant_menu, currentType),
+                      if (currentDescription.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        Text(r.description, style: TextStyle(color: Colors.grey.shade700, height: 1.4)),
+                        Text(currentDescription, style: TextStyle(color: Colors.grey.shade700, height: 1.4)),
+                      ],
+                      if (isOwner) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const MyRestaurantManagementScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.storefront_outlined),
+                            label: const Text('Quản lý quán của tôi'),
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 20),
                       Row(
@@ -202,6 +245,54 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 20),
+                      const Text('Menu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      if (currentMenu.isEmpty)
+                        Text('Chưa có menu cập nhật.', style: TextStyle(color: Colors.grey.shade600))
+                      else
+                        ...currentMenu.map(
+                          (item) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: Text((item['name'] ?? '').toString()),
+                            subtitle: Text(
+                              [
+                                if ((item['price'] ?? '').toString().isNotEmpty) 'Giá: ${item['price']}',
+                                if ((item['note'] ?? '').toString().isNotEmpty) 'Ghi chú: ${item['note']}',
+                              ].join(' • '),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      const Text('Hình ảnh', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      if (currentImages.isEmpty)
+                        Text('Chưa có ảnh bổ sung.', style: TextStyle(color: Colors.grey.shade600))
+                      else
+                        SizedBox(
+                          height: 110,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: currentImages.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 8),
+                            itemBuilder: (_, index) => ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: CachedNetworkImage(
+                                imageUrl: currentImages[index],
+                                width: 130,
+                                height: 110,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => Container(
+                                  width: 130,
+                                  height: 110,
+                                  color: Colors.grey.shade200,
+                                  child: const Icon(Icons.broken_image_outlined),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       if (r.lat != null && r.lng != null) ...[
                         const SizedBox(height: 20),
                         const Text('Vị trí', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),

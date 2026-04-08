@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../models/review_model.dart';
+import '../models/review.dart';
 import 'review_card_item.dart';
 
 class ReviewListWidget extends StatelessWidget {
@@ -58,7 +58,7 @@ class ReviewListWidget extends StatelessWidget {
               var doc = snapshot.data!.docs[index];
               var data = doc.data() as Map<String, dynamic>;
               
-              ReviewModel review = ReviewModel.fromMap(doc.id, data);
+              ReviewModel review = ReviewModel.fromMap(data, doc.id);
               
               return ReviewCardItem(review: review);
             } catch (e) {
