@@ -11,9 +11,10 @@ class RestaurantModel {
   final int totalReviews;
   final String? ownerUid;
   final List<String> categories;
-  final int priceRange; 
+  final int priceRange; // 1=rẻ, 2=trung bình, 3=cao
   final String imageUrl;
   final List<String> images;
+  final List<Map<String, dynamic>> menu;
   final String phone;
   final String openingHours;
   final String description;
@@ -38,6 +39,7 @@ class RestaurantModel {
     this.priceRange = 1,
     this.imageUrl = '',
     this.images = const [],
+    this.menu = const [],
     this.phone = '',
     this.openingHours = '',
     this.description = '',
@@ -47,19 +49,6 @@ class RestaurantModel {
     this.distanceKm,
   });
 
-  factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    final GeoPoint? geoPoint = data['location'] is GeoPoint ? data['location'] : null;
-
-    return RestaurantModel(
-      id: doc.id,
-      name: data['name'] ?? '',
-      address: data['address'] ?? '',
-      googlePlaceId: data['googlePlaceId'] ?? doc.id,
-      lat: geoPoint?.latitude ?? (data['lat'] as num?)?.toDouble(),
-      lng: geoPoint?.longitude ?? (data['lng'] as num?)?.toDouble(),
-      averageRating: (data['averageRating'] as num? ?? 0.0).toDouble(),
-      totalReviews: data['totalReviews'] as int? ?? 0,
   /// Create from OpenStreetMap Overpass API element
   factory RestaurantModel.fromOverpassJson(Map<String, dynamic> json) {
     final tags = json['tags'] as Map<String, dynamic>? ?? {};
@@ -109,6 +98,7 @@ class RestaurantModel {
       restaurantType: categories.isNotEmpty ? categories.first : 'restaurant',
       imageUrl: '',
       images: const [],
+      menu: const [],
       isOpenNow: false,
     );
   }
@@ -140,6 +130,7 @@ class RestaurantModel {
       priceRange: json['price_level'] ?? 1,
       imageUrl: photoUrl,
       images: photoUrls,
+      menu: const [],
       restaurantType: types.isNotEmpty ? types.first : '',
       categories: types,
       isOpenNow: json['opening_hours']?['open_now'] ?? false,
@@ -185,6 +176,7 @@ class RestaurantModel {
       priceRange: priceRange,
       imageUrl: photoUrl,
       images: photoUrls,
+      menu: const [],
       phone: json['nationalPhoneNumber'] as String? ?? '',
       openingHours: hoursText,
       restaurantType: types.isNotEmpty ? types.first : '',
@@ -199,25 +191,31 @@ class RestaurantModel {
       name: data['name'] ?? '',
       address: data['address'] ?? '',
       googlePlaceId: data['googlePlaceId'] ?? '',
-      lat: data['lat']?.toDouble(),
-      lng: data['lng']?.toDouble(),
+      lat: (data['lat'] as num?)?.toDouble(),
+      lng: (data['lng'] as num?)?.toDouble(),
       averageRating: (data['averageRating'] ?? 0.0).toDouble(),
       totalReviews: data['totalReviews'] ?? 0,
       ownerUid: data['ownerUid'],
       categories: List<String>.from(data['categories'] ?? []),
-      priceRange: data['priceRange'] as int? ?? 1,
+      priceRange: data['priceRange'] ?? 1,
       imageUrl: data['imageUrl'] ?? '',
       images: List<String>.from(data['images'] ?? []),
+      menu: List<Map<String, dynamic>>.from(
+        (data['menu'] as List<dynamic>? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map)),
+      ),
       phone: data['phone'] ?? '',
       openingHours: data['openingHours'] ?? '',
       description: data['description'] ?? '',
       isFeatured: data['isFeatured'] ?? false,
       restaurantType: data['restaurantType'] ?? '',
+      isOpenNow: data['isOpenNow'] ?? false,
     );
   }
 
-  factory RestaurantModel.fromMap(Map<String, dynamic> data, String id) {
-    return RestaurantModel.fromFirestore(_MockDocumentSnapshot(data, id));
+  factory RestaurantModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    return RestaurantModel.fromMap(data, doc.id);
   }
 
   Map<String, dynamic> toMap() {
@@ -234,39 +232,13 @@ class RestaurantModel {
       'priceRange': priceRange,
       'imageUrl': imageUrl,
       'images': images,
+      'menu': menu,
       'phone': phone,
       'openingHours': openingHours,
       'description': description,
       'isFeatured': isFeatured,
       'restaurantType': restaurantType,
+      'isOpenNow': isOpenNow,
     };
   }
-
-  
-  factory RestaurantModel.fromOverpassJson(Map<String, dynamic> json) {
-    final tags = json['tags'] as Map<String, dynamic>? ?? {};
-    final id = '${json['type']}/${json['id']}';
-    double? lat = (json['lat'] ?? json['center']?['lat'] as num?)?.toDouble();
-    double? lng = (json['lon'] ?? json['center']?['lon'] as num?)?.toDouble();
-
-    return RestaurantModel(
-      id: id,
-      name: tags['name'] ?? 'Nhà hàng',
-      address: tags['addr:full'] ?? '',
-      googlePlaceId: id,
-      lat: lat, lng: lng,
-      averageRating: 0.0,
-      totalReviews: 0,
-    );
-  }
-}
-
-class _MockDocumentSnapshot implements DocumentSnapshot {
-  final Map<String, dynamic> _data;
-  final String _id;
-  _MockDocumentSnapshot(this._data, this._id);
-  @override String get id => _id;
-  @override Map<String, dynamic> data() => _data;
-  @override dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 }

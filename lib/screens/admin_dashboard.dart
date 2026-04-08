@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/claim.dart';
-import '../models/reports.dart';
-import '../models/reviews.dart';
 import '../models/category.dart';
+import '../models/restaurants.dart';
 import '../services/firestore_service.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -28,7 +27,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+        title: const Text('Quản trị'),
         backgroundColor: Colors.orange.shade800,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -38,10 +37,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) => setState(() => _selectedIndex = index),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.verified_user_outlined), selectedIcon: Icon(Icons.verified_user), label: 'Claims'),
-          NavigationDestination(icon: Icon(Icons.report_outlined), selectedIcon: Icon(Icons.report), label: 'Reports'),
-          NavigationDestination(icon: Icon(Icons.category_outlined), selectedIcon: Icon(Icons.category), label: 'Categories'),
-          NavigationDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart), label: 'Stats'),
+          NavigationDestination(icon: Icon(Icons.verified_user_outlined), selectedIcon: Icon(Icons.verified_user), label: 'Nhận quán'),
+          NavigationDestination(icon: Icon(Icons.report_outlined), selectedIcon: Icon(Icons.report), label: 'Báo cáo '),
+          NavigationDestination(icon: Icon(Icons.category_outlined), selectedIcon: Icon(Icons.category), label: 'Danh mục'),
+          NavigationDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart), label: 'Thống kê'),
         ],
       ),
     );
@@ -57,19 +56,9 @@ class _ClaimModerationTab extends StatefulWidget {
 
 class _ClaimModerationTabState extends State<_ClaimModerationTab> {
   final FirestoreService _fs = FirestoreService();
-  bool _loading = true;
-  List<ClaimModel> _claims = [];
 
-  @override
-  void initState() { super.initState(); _load(); }
-  
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    _claims = await _fs.getPendingClaims();
-    setState(() => _loading = false);
-  }
-
-  void _showDetails(ClaimModel claim) {
+  void _showDetails(EnrichedClaimModel enriched) {
+    final claim = enriched.claim;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -83,14 +72,18 @@ class _ClaimModerationTabState extends State<_ClaimModerationTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Claim Details', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Chi tiết yêu cầu nhận quán', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              Text('User ID: ${claim.userId}'),
-              Text('Restaurant ID: ${claim.restaurantId}'),
+              Text('Người dùng: ${enriched.userName}'),
+              Text('Tên quán: ${enriched.restaurantName}'),
+              if (claim.note.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Ghi chú: ${claim.note}'),
+              ],
               const SizedBox(height: 16),
-              const Text('Proof Images:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Ảnh minh chứng:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              if (claim.proofImages.isEmpty) const Text('No images') else
+              if (claim.proofImages.isEmpty) const Text('Không có ảnh') else
               SizedBox(
                 height: 180,
                 child: ListView.builder(
@@ -108,9 +101,9 @@ class _ClaimModerationTabState extends State<_ClaimModerationTab> {
               const SizedBox(height: 30),
               Row(
                 children: [
-                  Expanded(child: OutlinedButton(onPressed: () => _process(claim, 'rejected'), child: const Text('Reject'))),
+                  Expanded(child: OutlinedButton(onPressed: () => _process(claim, 'rejected'), child: const Text('Từ chối'))),
                   const SizedBox(width: 12),
-                  Expanded(child: ElevatedButton(onPressed: () => _process(claim, 'approved'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: const Text('Approve'))),
+                  Expanded(child: ElevatedButton(onPressed: () => _process(claim, 'approved'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: const Text('Duyệt'))),
                 ],
               ),
             ],
@@ -122,26 +115,58 @@ class _ClaimModerationTabState extends State<_ClaimModerationTab> {
 
   Future<void> _process(ClaimModel claim, String status) async {
     Navigator.pop(context);
-    setState(() => _loading = true);
     await _fs.processClaim(claim.id, status, claim.userId, claim.restaurantId);
-    _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_claims.isEmpty) return const Center(child: Text('No pending claims'));
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _claims.length,
-      itemBuilder: (_, i) => Card(
-        child: ListTile(
-          title: Text('Claim: ${_claims[i].restaurantId}'),
-          subtitle: Text('User: ${_claims[i].userId}'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showDetails(_claims[i]),
-        ),
-      ),
+    return StreamBuilder<List<EnrichedClaimModel>>(
+      stream: _fs.getPendingClaimsEnrichedStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Không thể tải danh sách claim: ${snapshot.error}'),
+            ),
+          );
+        }
+
+        final claims = snapshot.data ?? const <EnrichedClaimModel>[];
+        if (claims.isEmpty) {
+          return const Center(child: Text('Không có yêu cầu nhận quán đang chờ duyệt'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: claims.length,
+          itemBuilder: (_, i) {
+            final enriched = claims[i];
+            return Card(
+              elevation: 0.8,
+              margin: const EdgeInsets.only(bottom: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.orange.shade100,
+                  child: Icon(Icons.store_mall_directory_outlined, color: Colors.orange.shade800),
+                ),
+                title: Text(
+                  enriched.restaurantName,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text('Người gửi: ${enriched.userName}'),
+                trailing: Icon(Icons.chevron_right, color: Colors.orange.shade700),
+                onTap: () => _showDetails(enriched),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -155,81 +180,128 @@ class _ReportManagementTab extends StatefulWidget {
 
 class _ReportManagementTabState extends State<_ReportManagementTab> {
   final FirestoreService _fs = FirestoreService();
-  bool _loading = true;
-  List<ReportModel> _reports = [];
 
-  @override
-  void initState() { super.initState(); _load(); }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    _reports = await _fs.getPendingReports();
-    setState(() => _loading = false);
-  }
-
-  void _showDetails(ReportModel report) {
+  void _showDetails(EnrichedReportModel enriched) {
+    final report = enriched.report;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => FutureBuilder<ReviewModel?>(
-        future: _fs.getReview(report.reviewId),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
-          final rv = snapshot.data!;
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Reason: ${report.reason}', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                const Divider(),
-                Text('Comment: ${rv.comment}'),
-                const SizedBox(height: 10),
-                if (rv.photoUrls.isNotEmpty)
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: rv.photoUrls.length,
-                      itemBuilder: (_, i) => Padding(padding: const EdgeInsets.only(right: 8), child: CachedNetworkImage(imageUrl: rv.photoUrls[i], width: 100, fit: BoxFit.cover)),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Lý do báo cáo: ${report.reason}',
+              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text('Người báo cáo: ${enriched.reporterName}'),
+            Text('Người đánh giá: ${enriched.reviewerName}'),
+            Text('Nhà hàng: ${enriched.restaurantName}'),
+            const Divider(height: 24),
+            Text(
+              'Nội dung đánh giá: ${enriched.review?.comment ?? 'Không có dữ liệu'}',
+            ),
+            const SizedBox(height: 10),
+            if ((enriched.review?.photoUrls ?? const <String>[]).isNotEmpty)
+              SizedBox(
+                height: 100,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: enriched.review!.photoUrls.length,
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: CachedNetworkImage(
+                      imageUrl: enriched.review!.photoUrls[i],
+                      width: 100,
+                      fit: BoxFit.cover,
                     ),
                   ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    TextButton(onPressed: () => _resolve(report.id, rv.id!, 'dismiss'), child: const Text('Dismiss')),
-                    ElevatedButton(onPressed: () => _resolve(report.id, rv.id!, 'hide'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), child: const Text('Hide')),
-                    ElevatedButton(onPressed: () => _resolve(report.id, rv.id!, 'delete'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Delete')),
-                  ],
-                )
+                ),
+              ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                TextButton(
+                  onPressed: () => _resolve(report.id, report.reviewId, 'dismiss'),
+                  child: const Text('Bỏ qua'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _resolve(report.id, report.reviewId, 'hide'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  child: const Text('Ẩn'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _resolve(report.id, report.reviewId, 'delete'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Xóa'),
+                ),
               ],
-            ),
-          );
-        },
+            )
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _resolve(String rid, String rvid, String action) async {
     Navigator.pop(context);
-    setState(() => _loading = true);
     await _fs.resolveReport(rid, rvid, action);
-    _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_reports.isEmpty) return const Center(child: Text('No reports'));
-    return ListView.builder(
-      itemCount: _reports.length,
-      itemBuilder: (_, i) => ListTile(
-        title: Text(_reports[i].reason),
-        subtitle: Text('Review ID: ${_reports[i].reviewId}'),
-        onTap: () => _showDetails(_reports[i]),
-      ),
+    return StreamBuilder<List<EnrichedReportModel>>(
+      stream: _fs.getPendingReportsEnrichedStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Không thể tải danh sách báo cáo: ${snapshot.error}'),
+            ),
+          );
+        }
+
+        final reports = snapshot.data ?? const <EnrichedReportModel>[];
+        if (reports.isEmpty) return const Center(child: Text('Không có báo cáo chờ xử lý'));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: reports.length,
+          itemBuilder: (_, i) {
+            final enriched = reports[i];
+            return Card(
+              elevation: 0.8,
+              margin: const EdgeInsets.only(bottom: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.red.shade50,
+                  child: Icon(Icons.report_gmailerrorred, color: Colors.red.shade400),
+                ),
+                title: Text(
+                  enriched.report.reason,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(
+                  'Báo cáo: ${enriched.reporterName}\nĐánh giá: ${enriched.reviewerName}\nNhà hàng: ${enriched.restaurantName}',
+                ),
+                isThreeLine: true,
+                trailing: Icon(Icons.chevron_right, color: Colors.orange.shade700),
+                onTap: () => _showDetails(enriched),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -250,10 +322,10 @@ class _CategoryManagementTabState extends State<_CategoryManagementTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(cat == null ? 'Add Category' : 'Edit Category'),
-        content: TextField(controller: _labelCtrl, decoration: const InputDecoration(labelText: 'Label')),
+        title: Text(cat == null ? 'Thêm' : 'Sửa'),
+        content: TextField(controller: _labelCtrl, decoration: const InputDecoration(labelText: 'Nhãn')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               if (_labelCtrl.text.isEmpty) return;
@@ -261,7 +333,7 @@ class _CategoryManagementTabState extends State<_CategoryManagementTab> {
               cat == null ? await _fs.addCategory(newCat) : await _fs.updateCategory(newCat);
               Navigator.pop(context);
             },
-            child: const Text('Save'),
+            child: const Text('Lưu'),
           )
         ],
       ),
@@ -273,21 +345,101 @@ class _CategoryManagementTabState extends State<_CategoryManagementTab> {
     return Scaffold(
       body: StreamBuilder<List<CategoryModel>>(
         stream: _fs.getCategoriesStream(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          return ListView.builder(
-            itemCount: snapshot.data!.length,
-            itemBuilder: (_, i) {
-              final c = snapshot.data![i];
-              return ListTile(
-                title: Text(c.label),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(icon: const Icon(Icons.edit), onPressed: () => _openDialog(c)),
-                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _fs.deleteCategory(c.id)),
-                  ],
-                ),
+        builder: (context, categorySnapshot) {
+          if (!categorySnapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final adminCategories = categorySnapshot.data!;
+          final adminCategoryByKey = <String, CategoryModel>{
+            for (final c in adminCategories)
+              if (c.label.trim().isNotEmpty) c.label.trim().toLowerCase(): c,
+          };
+
+          return StreamBuilder<List<RestaurantModel>>(
+            stream: _fs.getRestaurantsStream(),
+            builder: (context, restaurantSnapshot) {
+              if (!restaurantSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final restaurantTypes = restaurantSnapshot.data!
+                  .map((r) => r.restaurantType.trim())
+                  .where((type) => type.isNotEmpty)
+                  .toSet()
+                  .toList()
+                ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+              final restaurantTypeKeys = restaurantTypes
+                  .map((type) => type.toLowerCase())
+                  .toSet();
+
+              final mergedKeys = <String>{
+                ...adminCategoryByKey.keys,
+                ...restaurantTypeKeys,
+              }.toList()
+                ..sort((a, b) => a.compareTo(b));
+
+              if (mergedKeys.isEmpty) {
+                return const Center(
+                  child: Text('Chưa có danh mục nào từ Admin hoặc RestaurantType'),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 80),
+                itemCount: mergedKeys.length,
+                itemBuilder: (context, index) {
+                  final key = mergedKeys[index];
+                  final adminCategory = adminCategoryByKey[key];
+                  final hasRestaurantType = restaurantTypeKeys.contains(key);
+                  final displayLabel = adminCategory?.label ??
+                      restaurantTypes.firstWhere((t) => t.toLowerCase() == key);
+
+                  final source = adminCategory != null && hasRestaurantType
+                      ? 'Nguồn: Admin + RestaurantType'
+                      : adminCategory != null
+                          ? 'Nguồn: Admin'
+                          : 'Nguồn: RestaurantType';
+
+                  return Card(
+                    elevation: 0.5,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: adminCategory != null
+                            ? Colors.orange.shade100
+                            : Colors.blue.shade100,
+                        child: Icon(
+                          adminCategory != null
+                              ? Icons.category_outlined
+                              : Icons.restaurant_menu,
+                          color: adminCategory != null
+                              ? Colors.orange.shade700
+                              : Colors.blue.shade700,
+                        ),
+                      ),
+                      title: Text(displayLabel),
+                      subtitle: Text(source),
+                      trailing: adminCategory != null
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () => _openDialog(adminCategory),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _fs.deleteCategory(adminCategory.id),
+                                ),
+                              ],
+                            )
+                          : const Icon(Icons.data_object, color: Colors.blueGrey),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -321,11 +473,55 @@ class _StatisticsTabState extends State<_StatisticsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+
+    final int totalReviews = _data.fold<int>(0, (sum, item) => sum + (item['count'] as int? ?? 0));
+    final int thisMonthReviews = _data.isNotEmpty ? (_data.last['count'] as int? ?? 0) : 0;
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const Text('Review Growth', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Tăng trưởng đánh giá', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$totalReviews', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      const Text('Tổng review 6 tháng'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$thisMonthReviews', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      const Text('Review tháng này'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 30),
           AspectRatio(
             aspectRatio: 1.5,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Để định dạng ngày tháng
-import '../models/review_model.dart';
+import '../models/review.dart';
 
 class ReviewCardItem extends StatelessWidget {
   final ReviewModel review;
@@ -9,6 +9,11 @@ class ReviewCardItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final createdAt = review.createdAt;
+    final createdAtText = createdAt != null
+        ? DateFormat('dd/MM/yyyy HH:mm').format(createdAt)
+        : 'Chua cap nhat';
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -31,7 +36,7 @@ class ReviewCardItem extends StatelessWidget {
                     children: [
                       Text(review.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
                       Text(
-                        DateFormat('dd/MM/yyyy HH:mm').format(review.createdAt),
+                        createdAtText,
                         style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
@@ -68,18 +73,18 @@ class ReviewCardItem extends StatelessWidget {
               ),
 
             const SizedBox(height: 8),
-
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                review.imageUrl,
-                height: 180,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => 
-                  const Icon(Icons.broken_image, size: 50),
+            if (review.imageUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  review.imageUrl,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.broken_image, size: 50),
+                ),
               ),
-            ),
           ],
         ),
       ),

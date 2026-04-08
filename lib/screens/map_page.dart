@@ -3,13 +3,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/restaurants.dart';
-import '../models/reviews.dart';
+import '../models/review.dart';
 import '../services/firestore_service.dart';
 import '../services/places_service.dart';
 import '../services/location_service.dart';
 import 'restaurant_detail.dart';
-
-const String _kApiKey = 'place_holder_apikey';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -121,7 +119,7 @@ class _MapPageState extends State<MapPage> {
   Future<void> _loadReviewsForRestaurant(RestaurantModel r) async {
     try {
       final reviews =
-          await _firestoreService.getRestaurantReviews(r.googlePlaceId);
+          await _firestoreService.getRestaurantReviews(r.id);
       if (mounted && _selectedRestaurant?.id == r.id) {
         setState(() {
           _selectedReviews = reviews;

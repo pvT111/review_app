@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import '../models/review_model.dart';
+import '../models/review.dart';
+import '../services/firestore_service.dart';
 import '../services/review_service.dart';
 
 class AddReviewScreen extends StatefulWidget {
@@ -14,6 +16,7 @@ class AddReviewScreen extends StatefulWidget {
 
 class _AddReviewScreenState extends State<AddReviewScreen> {
   final ReviewService _reviewService = ReviewService();
+  final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _commentController = TextEditingController();
 
   File? _image;
@@ -50,10 +53,26 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng đăng nhập để gửi đánh giá.')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final userData = await _firestoreService.getUser(user.uid);
+
       final newReview = ReviewModel(
         restaurantId: widget.restaurantId,
-        userId: 'guest_user',
-        userName: 'Khách vãng lai',
+        userId: user.uid,
+        userName: (userData?.name.trim().isNotEmpty == true)
+            ? userData!.name
+            : (user.displayName?.trim().isNotEmpty == true
+                ? user.displayName!
+                : 'Người dùng'),
         rating: _currentRating,
         comment: _commentController.text,
         imageUrl: '',

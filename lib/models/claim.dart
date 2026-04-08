@@ -6,6 +6,7 @@ class ClaimModel {
   final String restaurantId;
   final String status; // pending, approved, rejected
   final List<String> proofImages;
+  final String note;
   final DateTime? submittedAt;
 
   ClaimModel({
@@ -14,6 +15,7 @@ class ClaimModel {
     required this.restaurantId,
     required this.status,
     required this.proofImages,
+    this.note = '',
     this.submittedAt,
   });
 
@@ -24,6 +26,7 @@ class ClaimModel {
       restaurantId: data['restaurantId'] ?? '',
       status: data['status'] ?? 'pending',
       proofImages: List<String>.from(data['proofImages'] ?? []),
+      note: data['note'] ?? '',
       submittedAt: (data['submittedAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -34,6 +37,7 @@ class ClaimModel {
       'restaurantId': restaurantId,
       'status': status,
       'proofImages': proofImages,
+      'note': note,
       'submittedAt': submittedAt ?? FieldValue.serverTimestamp(),
     };
   }

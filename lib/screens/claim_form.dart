@@ -90,6 +90,7 @@ class _ClaimFormScreenState extends State<ClaimFormScreen> {
         restaurantId: _selectedRestaurant!.id,
         status: 'pending',
         proofImages: uploadTasks,
+        note: _noteController.text.trim(),
         submittedAt: DateTime.now(),
       );
 
@@ -330,5 +331,12 @@ class _ClaimFormScreenState extends State<ClaimFormScreen> {
             ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _noteController.dispose();
+    super.dispose();
   }
 }
