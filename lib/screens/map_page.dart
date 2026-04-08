@@ -36,7 +36,7 @@ class _MapPageState extends State<MapPage> {
   bool _isLoading = true;
 
   LatLng _currentLatLng = const LatLng(10.7769, 106.7009); // HCM default
-  double _searchRadius = 5.0; // km
+  double _searchRadius = 3.0; // km (max 5)
 
   @override
   void initState() {
@@ -71,9 +71,8 @@ class _MapPageState extends State<MapPage> {
     if (_restaurants.isEmpty && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Không lấy được dữ liệu từ Google Places. Kiểm tra Places API đã được bật chưa.'),
-          duration: Duration(seconds: 5),
+          content: Text('Không tìm thấy quán ăn trong khu vực này.'),
+          duration: Duration(seconds: 3),
         ),
       );
     }
@@ -403,8 +402,8 @@ class _MapPageState extends State<MapPage> {
                   child: Slider(
                     value: _searchRadius,
                     min: 1,
-                    max: 20,
-                    divisions: 19,
+                    max: 5,
+                    divisions: 4,
                     activeColor: Colors.orange,
                     onChanged: (val) {
                       setState(() => _searchRadius = val);

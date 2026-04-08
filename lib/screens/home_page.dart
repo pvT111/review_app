@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/restaurants.dart';
 import '../services/location_service.dart';
+import '../services/firestore_service.dart';
 import 'restaurant_detail.dart';
 
 class HomePage extends StatefulWidget {
@@ -15,6 +16,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final LocationService _locationService = LocationService();
+  final FirestoreService _firestoreService = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
 
   String _sortBy = 'rating';
@@ -38,6 +40,56 @@ class _HomePageState extends State<HomePage> {
   List<RestaurantModel> _processData(List<RestaurantModel> data) {
     List<RestaurantModel> filtered = _locationService.filterRestaurants(
       data,
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final pos = await _locationService.getCurrentLocation();
+      final lat = pos?.latitude ?? 10.7769;
+      final lng = pos?.longitude ?? 106.7009;
+
+      _allRestaurants = await _placesService.getNearbyRestaurants(
+        lat: lat,
+        lng: lng,
+        radius: 5000,
+      );
+
+      // SỬA LỖI: Await việc đẩy dữ liệu lên Firestore để đảm bảo thành công
+      // Sử dụng Future.wait để đẩy song song nhưng vẫn đợi kết quả
+      if (_allRestaurants.isNotEmpty) {
+        await Future.wait(_allRestaurants.map((r) => _firestoreService.ensureRestaurantExists(r)));
+        debugPrint('Đã đồng bộ ${_allRestaurants.length} quán lên Firestore');
+      }
+
+      // Top-rated as featured
+      _featuredRestaurants = List.from(_allRestaurants)
+        ..sort((a, b) => b.averageRating.compareTo(a.averageRating));
+      _featuredRestaurants = _featuredRestaurants.take(5).toList();
+
+      // Attach distances
+      for (var r in _allRestaurants) {
+        r.distanceKm = _locationService.getDistanceToRestaurant(r);
+      }
+      for (var r in _featuredRestaurants) {
+        r.distanceKm = _locationService.getDistanceToRestaurant(r);
+      }
+
+      _applyFiltersAndSort();
+    } catch (e) {
+      debugPrint('Error loading data: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _applyFiltersAndSort() {
+    _filteredRestaurants = _locationService.filterRestaurants(
+      List.from(_allRestaurants),
       priceRange: _selectedPriceRange,
       minRating: _selectedMinRating,
       category: _selectedCategory,

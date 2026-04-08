@@ -8,6 +8,7 @@ import 'claim_form.dart';
 import 'home_page.dart';
 import 'map_page.dart';
 import 'restaurant_list_page.dart';
+import 'admin_dashboard.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -105,6 +106,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         leading: const Icon(Icons.store_outlined),
                         title: const Text('Quản lý quán của tôi'),
                         onTap: () => Navigator.pop(context),
+                        title: const Text('Quán của tôi'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          // Điều hướng tới màn hình quản lý quán của chủ
+                        },
+                      ),
+                    if (userData?.role == 'admin')
+                      ListTile(
+                        leading: const Icon(Icons.admin_panel_settings_outlined),
+                        title: const Text('Quản trị'),
+                        onTap: () { Navigator.pop(context); Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminDashboard())
+                          );
+                        },
                       ),
                     const Divider(),
                     ListTile(

@@ -31,7 +31,10 @@ class _ClaimFormScreenState extends State<ClaimFormScreen> {
   bool _isSubmitting = false;
 
   Future<void> _pickImage(bool isGoogleMaps) async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
     if (image != null) {
       setState(() {
         if (isGoogleMaps) {
@@ -44,55 +47,88 @@ class _ClaimFormScreenState extends State<ClaimFormScreen> {
   }
 
   void _search(String query) async {
-    if (query.isEmpty) return;
+    if (query.length < 2) {
+      setState(() => _searchResults = []);
+      return;
+    }
     setState(() => _isSearching = true);
-    final results = await _firestoreService.searchRestaurants(query);
-    setState(() {
-      _searchResults = results;
-      _isSearching = false;
-    });
+    try {
+      final results = await _firestoreService.searchRestaurants(query);
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() => _isSearching = false);
+    }
   }
 
   Future<void> _submit() async {
     if (_selectedRestaurant == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn quán')));
+      _showError('Vui lòng CHỌN quán ăn từ danh sách gợi ý.');
       return;
     }
     if (_googleMapsImage == null || _licenseImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn đủ 2 ảnh minh chứng')));
+      _showError('Vui lòng cung cấp đầy đủ 2 ảnh minh chứng.');
       return;
     }
-    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      
-      // Upload ảnh
-      String googleMapsUrl = await _uploadXFile(_googleMapsImage!, 'claims/google_maps');
-      String licenseUrl = await _uploadXFile(_licenseImage!, 'claims/licenses');
+      if (user == null) throw 'Bạn cần đăng nhập để thực hiện chức năng này.';
+
+      final uploadTasks = await Future.wait([
+        _uploadXFile(_googleMapsImage!, 'claims/google_maps'),
+        _uploadXFile(_licenseImage!, 'claims/licenses'),
+      ]);
 
       final claim = ClaimModel(
-        id: '',
-        userId: user?.uid ?? '',
+        id: '', 
+        userId: user.uid,
         restaurantId: _selectedRestaurant!.id,
         status: 'pending',
-        proofImages: [googleMapsUrl, licenseUrl],
+        proofImages: uploadTasks,
         submittedAt: DateTime.now(),
       );
 
       await _firestoreService.submitClaim(claim);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gửi yêu cầu thành công!')));
-        Navigator.pop(context);
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Thành công'),
+            content: const Text('Yêu cầu của bạn đã được gửi. Admin sẽ phê duyệt trong vòng 24-48h.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); 
+                  Navigator.pop(context); 
+                },
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      _showError('Lỗi hệ thống: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message), 
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<String> _uploadXFile(XFile xFile, String folder) async {
@@ -107,100 +143,149 @@ class _ClaimFormScreenState extends State<ClaimFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhận quán')),
+      appBar: AppBar(
+        title: const Text('Yêu cầu nhận quán'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('1. Tìm quán của bạn', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 10),
+              _buildSectionTitle('1. Tìm và chọn quán của bạn'),
+              const SizedBox(height: 12),
+              
+              // Ô tìm kiếm - Chỉ hiện khi chưa chọn quán
+              if (_selectedRestaurant == null) ...[
+                TextField(
+                  controller: _searchController,
+                  onChanged: _search,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập tên quán (ví dụ: Dumpling...)',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    suffixIcon: _isSearching ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)) : null,
+                  ),
+                ),
+                if (_searchResults.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text('Kết quả tìm kiếm (Nhấn để chọn):', style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold)),
+                        ),
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _searchResults.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final r = _searchResults[index];
+                            return ListTile(
+                              leading: const Icon(Icons.restaurant, color: Colors.orange),
+                              title: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(r.address, maxLines: 1),
+                              onTap: () {
+                                FocusScope.of(context).unfocus(); // Ẩn bàn phím
+                                setState(() {
+                                  _selectedRestaurant = r;
+                                  _searchResults = [];
+                                  _searchController.text = r.name;
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+
+              // Trạng thái ĐÃ CHỌN QUÁN
+              if (_selectedRestaurant != null)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green, width: 2),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green, size: 30),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Đã chọn quán:', style: TextStyle(fontSize: 12, color: Colors.green)),
+                            Text(_selectedRestaurant!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(_selectedRestaurant!.address, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _selectedRestaurant = null),
+                        child: const Text('Thay đổi', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 32),
+              _buildSectionTitle('2. Minh chứng quyền sở hữu'),
+              const Text('Tải lên ảnh quản lý Google Maps và Giấy phép/Ảnh quán.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 16),
               Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Nhập tên quán...',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => _search(_searchController.text),
-                    icon: const Icon(Icons.search),
-                    style: IconButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                  ),
+                  Expanded(child: _buildImageSelector('Ảnh Google Maps', _googleMapsImage, () => _pickImage(true))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildImageSelector('Giấy phép/Ảnh quán', _licenseImage, () => _pickImage(false))),
                 ],
               ),
-              if (_isSearching) const LinearProgressIndicator(),
-              if (_searchResults.isNotEmpty && _selectedRestaurant == null)
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  margin: const EdgeInsets.only(top: 10),
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300)),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _searchResults.length,
-                    itemBuilder: (context, index) {
-                      final r = _searchResults[index];
-                      return ListTile(
-                        title: Text(r.name),
-                        subtitle: Text(r.address),
-                        onTap: () => setState(() {
-                          _selectedRestaurant = r;
-                          _searchResults = [];
-                          _searchController.text = r.name;
-                        }),
-                      );
-                    },
-                  ),
-                ),
-              if (_selectedRestaurant != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Card(
-                    color: Colors.green.shade50,
-                    child: ListTile(
-                      title: Text(_selectedRestaurant!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(_selectedRestaurant!.address),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red),
-                        onPressed: () => setState(() => _selectedRestaurant = null),
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 40),
-              const Text('2. Ảnh minh chứng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 10),
-              _buildImageSelector('Ảnh Business Profile Google Maps', _googleMapsImage, () => _pickImage(true)),
-              const SizedBox(height: 20),
-              const Text('3. Ghi chú thêm', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 10),
+
+              const SizedBox(height: 32),
+              _buildSectionTitle('3. Ghi chú (không bắt buộc)'),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _noteController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Nhập thông tin bổ sung nếu có...',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: 'Nhập thông tin xác minh thêm...',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-              const SizedBox(height: 30),
+
+              const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 55,
                 child: ElevatedButton(
                   onPressed: _isSubmitting ? null : _submit,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   child: _isSubmitting 
-                    ? const Row(mainAxisAlignment: MainAxisAlignment.center, children: [CircularProgressIndicator(color: Colors.white), SizedBox(width: 10), Text('Đang upload...')])
-                    : const Text('Gửi yêu cầu nhận quán', style: TextStyle(fontSize: 16)),
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Gửi xác minh ngay', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -208,26 +293,39 @@ class _ClaimFormScreenState extends State<ClaimFormScreen> {
     );
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold));
+  }
+
   Widget _buildImageSelector(String label, XFile? image, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 120,
-        width: double.infinity,
+        height: 140,
         decoration: BoxDecoration(
-          border: Border.all(color: image != null ? Colors.green : Colors.grey),
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.grey.shade50,
+          border: Border.all(color: image != null ? Colors.green : Colors.grey.shade300, width: 2),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: image != null 
-          ? kIsWeb 
-            ? Stack(children: [Image.network(image.path, fit: BoxFit.cover, width: double.infinity), Center(child: Container(padding: const EdgeInsets.all(4), color: Colors.black45, child: const Text('Đã chọn (Click để thay đổi)', style: TextStyle(color: Colors.white, fontSize: 12))))])
-            : Stack(children: [Image.file(File(image.path), fit: BoxFit.cover, width: double.infinity), Center(child: Container(padding: const EdgeInsets.all(4), color: Colors.black45, child: const Text('Đã chọn (Click để thay đổi)', style: TextStyle(color: Colors.white, fontSize: 12))))])
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  kIsWeb ? Image.network(image.path, fit: BoxFit.cover) : Image.file(File(image.path), fit: BoxFit.cover),
+                  Container(color: Colors.black26),
+                  const Center(child: Icon(Icons.edit, color: Colors.white)),
+                ],
+              ),
+            )
           : Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.camera_alt, size: 40, color: Colors.grey),
-                const SizedBox(height: 5),
-                Text(label, style: const TextStyle(color: Colors.grey)),
+                Icon(Icons.add_a_photo_outlined, size: 32, color: Colors.grey.shade400),
+                const SizedBox(height: 8),
+                Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
       ),
