@@ -63,7 +63,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       await _authService.signInWithGoogle();
       if (mounted) {
-        Navigator.of(context).pop(); // Quay về Home sau khi đăng nhập thành công
+        Navigator.of(context).pop(); //
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi Google Sign-In: $e')));
@@ -116,7 +116,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: ElevatedButton(
                           onPressed: _submit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            backgroundColor: Colors.orange.shade700,
                             foregroundColor: Colors.white,
                           ),
                           child: Text(_isLogin ? 'Đăng nhập' : 'Đăng ký'),
