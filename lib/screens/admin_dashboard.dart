@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../models/claim.dart';
 import '../models/category.dart';
 import '../models/restaurants.dart';
+import '../models/users.dart';
 import '../services/firestore_service.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -21,6 +22,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     const _ReportManagementTab(),
     const _CategoryManagementTab(),
     const _StatisticsTab(),
+    const _UserManagementTab(),
   ];
 
   @override
@@ -41,6 +43,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           NavigationDestination(icon: Icon(Icons.report_outlined), selectedIcon: Icon(Icons.report), label: 'Báo cáo '),
           NavigationDestination(icon: Icon(Icons.category_outlined), selectedIcon: Icon(Icons.category), label: 'Danh mục'),
           NavigationDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart), label: 'Thống kê'),
+          NavigationDestination(icon: Icon(Icons.manage_accounts_outlined), selectedIcon: Icon(Icons.manage_accounts), label: 'Người dùng'),
         ],
       ),
     );
@@ -542,6 +545,255 @@ class _StatisticsTabState extends State<_StatisticsTab> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// --- TAB 5: QUẢN LÝ NGƯỜI DÙNG & PHÂN QUYỀN ---
+class _UserManagementTab extends StatefulWidget {
+  const _UserManagementTab();
+
+  @override
+  State<_UserManagementTab> createState() => _UserManagementTabState();
+}
+
+class _UserManagementTabState extends State<_UserManagementTab> {
+  final FirestoreService _fs = FirestoreService();
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _keyword = '';
+  bool _updatingRole = false;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<UserModel> _filterUsers(List<UserModel> users) {
+    final keyword = _keyword.trim().toLowerCase();
+    if (keyword.isEmpty) {
+      return users;
+    }
+
+    return users.where((u) {
+      final name = u.name.toLowerCase();
+      final email = u.email.toLowerCase();
+      final role = u.role.toLowerCase();
+      return name.contains(keyword) || email.contains(keyword) || role.contains(keyword);
+    }).toList();
+  }
+
+  String _displayRole(String role) {
+    switch (role.trim().toLowerCase()) {
+      case 'admin':
+        return 'Quản trị viên';
+      case 'owner':
+        return 'Chủ quán';
+      default:
+        return 'Người dùng';
+    }
+  }
+
+  Color _roleColor(String role) {
+    switch (role.trim().toLowerCase()) {
+      case 'admin':
+        return Colors.deepOrange;
+      case 'owner':
+        return Colors.blue;
+      default:
+        return Colors.green;
+    }
+  }
+
+  Future<void> _showRoleDialog(UserModel user) async {
+    String selectedRole = user.role.trim().toLowerCase();
+    final roles = const <String>['customer', 'owner', 'admin'];
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Phân quyền hệ thống'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user.name.isNotEmpty ? user.name : user.email),
+                  const SizedBox(height: 4),
+                  Text(
+                    user.email,
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<String>(
+                    value: roles.contains(selectedRole) ? selectedRole : 'customer',
+                    decoration: const InputDecoration(
+                      labelText: 'Vai trò',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: roles
+                        .map(
+                          (role) => DropdownMenuItem<String>(
+                            value: role,
+                            child: Text(_displayRole(role)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setModalState(() => selectedRole = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _updatingRole ? null : () => Navigator.pop(context),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  onPressed: _updatingRole
+                      ? null
+                      : () async {
+                          if (selectedRole == user.role.trim().toLowerCase()) {
+                            Navigator.pop(context);
+                            return;
+                          }
+
+                          setState(() => _updatingRole = true);
+                          try {
+                            await _fs.updateUserRole(user.uid, selectedRole);
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Đã cập nhật quyền người dùng')),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Không thể cập nhật quyền: $e')),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _updatingRole = false);
+                            }
+                          }
+                        },
+                  child: _updatingRole
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Lưu quyền'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: TextField(
+            controller: _searchCtrl,
+            onChanged: (value) => setState(() => _keyword = value),
+            decoration: InputDecoration(
+              hintText: 'Tìm tên, email, vai trò...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _keyword.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        setState(() => _keyword = '');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<UserModel>>(
+            stream: _fs.getUsersStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text('Không thể tải danh sách người dùng: ${snapshot.error}'),
+                  ),
+                );
+              }
+
+              final allUsers = snapshot.data ?? const <UserModel>[];
+              final users = _filterUsers(allUsers);
+
+              if (users.isEmpty) {
+                final text = allUsers.isEmpty
+                    ? 'Chưa có dữ liệu người dùng'
+                    : 'Không tìm thấy người dùng phù hợp';
+                return Center(child: Text(text));
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                itemCount: users.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final user = users[index];
+                  final roleLabel = _displayRole(user.role);
+                  final roleColor = _roleColor(user.role);
+                  final name = user.name.trim().isEmpty ? 'Người dùng chưa đặt tên' : user.name;
+
+                  return Card(
+                    elevation: 0.8,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: roleColor.withValues(alpha: 0.15),
+                        child: Icon(Icons.person_outline, color: roleColor),
+                      ),
+                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(user.email),
+                      trailing: Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Chip(
+                            label: Text(roleLabel),
+                            side: BorderSide(color: roleColor.withValues(alpha: 0.35)),
+                            backgroundColor: roleColor.withValues(alpha: 0.1),
+                          ),
+                          IconButton(
+                            tooltip: 'Phân quyền',
+                            icon: const Icon(Icons.admin_panel_settings_outlined),
+                            onPressed: () => _showRoleDialog(user),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

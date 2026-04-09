@@ -61,6 +61,35 @@ class FirestoreService {
     await _db.collection('users').doc(user.uid).set(user.toMap(), SetOptions(merge: true));
   }
 
+  Stream<List<UserModel>> getUsersStream() {
+    return _db
+        .collection('users')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+            .toList()
+          ..sort((a, b) {
+            final aName = a.name.trim().isEmpty ? a.email : a.name;
+            final bName = b.name.trim().isEmpty ? b.email : b.name;
+            return aName.toLowerCase().compareTo(bName.toLowerCase());
+          }));
+  }
+
+  Future<void> updateUserRole(String uid, String role) async {
+    final normalizedRole = role.trim().toLowerCase();
+    if (normalizedRole != 'customer' && normalizedRole != 'owner' && normalizedRole != 'admin') {
+      throw ArgumentError('Invalid role: $role');
+    }
+
+    await _db.collection('users').doc(uid).set(
+      {
+        'role': normalizedRole,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   // --- Restaurant methods ---
   Future<void> ensureRestaurantExists(RestaurantModel restaurant) async {
     final normalizedId = normalizeRestaurantId(restaurant.id);
