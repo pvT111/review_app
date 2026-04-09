@@ -573,7 +573,7 @@ class _MapPageState extends State<MapPage> {
                       : const Icon(Icons.directions, size: 18),
                   label: const Text('Chỉ đường'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade600,
+                    backgroundColor: Colors.orange.shade700,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),

@@ -9,6 +9,7 @@ import '../services/places_service.dart';
 import 'package:review_app/widget/review_list_widget.dart';
 import 'package:review_app/screens/add_review_screen.dart';
 import 'package:review_app/screens/my_restaurant_management_screen.dart';
+import 'package:review_app/screens/auth.dart';
 
 class RestaurantDetailScreen extends StatefulWidget {
   final RestaurantModel restaurant;
@@ -39,6 +40,33 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
     } catch (e) {
       debugPrint('Error loading place details: $e');
     }
+  }
+
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text('Bạn cần đăng nhập để viết đánh giá cho quán ăn này.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Để sau'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AuthScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700),
+            child: const Text('Đăng nhập ngay', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -81,8 +109,8 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
               ));
           }
 
-          final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
-          final isOwner = currentUserUid != null && currentUserUid == currentOwnerUid;
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final isOwner = currentUser != null && currentUser.uid == currentOwnerUid;
 
           return CustomScrollView(
             slivers: [
@@ -226,6 +254,10 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () {
+                                if (FirebaseAuth.instance.currentUser == null) {
+                                  _showLoginRequiredDialog();
+                                  return;
+                                }
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
