@@ -204,7 +204,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                   ),
                   const SizedBox(height: 25),
                   const Text(
-                    'Cảm nhận của bạn:',
+                    'Ghi chú:',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
